@@ -1,10 +1,32 @@
 # POSSESSED
 
-**Your friend is the furniture. Trust nothing.**
+<div align="center">
+
+<a href="https://possessed.base44.app"><img src="docs/showcase/possessed-cover.svg" alt="POSSESSED. Your friend is the furniture. Trust nothing. A haunted-house illustration for a two-player game of supernatural hide-and-seek." width="100%"></a>
+
+### One house. Two players. Trust nothing.
+
+**[PLAY POSSESSED](https://possessed.base44.app)** &nbsp; / &nbsp; **[CONTEST & VOTING](https://app.base44.com/launchpad/contests/spooky-showdown)** &nbsp; / &nbsp; [How to play](#how-to-play)
+
+Indica Independent Media's entry in **Base44 Spooky Showdown**.
 
 A real-time, two-player game of supernatural hide-and-seek. One player hides inside the house's objects as the Ghost. The other follows clues and spends search charges as the Hunter. Then the roles reverse.
 
-[Play POSSESSED](https://possessed.base44.app)
+Bring a friend. Create a haunt. Share the room code.
+
+</div>
+
+<a href="https://possessed.base44.app"><img src="docs/showcase/possessed-roles.svg" alt="Ghost: hide inside objects and outlast the hunt. Hunter: investigate the house and find your friend. Swap roles, then compare survival times." width="100%"></a>
+
+| Be the Ghost | Be the Hunter |
+| :--- | :--- |
+| Hide in plain sight. Move between objects. Make your friend doubt the room. | Read the clues. Choose your searches. Catch the presence hiding in the furniture. |
+
+**Play together, then trade places.** Both players get a turn on each side of the haunting.
+
+Enjoyed the game? Visit the [Spooky Showdown contest page](https://app.base44.com/launchpad/contests/spooky-showdown) to follow the competition and its community voting. Votes are cast on Base44, not through GitHub stars.
+
+---
 
 ## How to play
 
@@ -48,7 +70,9 @@ Never put a credential into a `VITE_` variable: frontend build variables are pub
 
 ## Verification and limitations
 
-Snapshot of 2026-10-30: 44 of 44 tests pass (5 files) and the production build succeeds on a clean install. `npm audit` reports advisories in packages inherited from the starter template (zod, quill, dompurify, follow-redirects, postcss-selector-parser); the game code does not import zod or quill. Automated tests use a simulated Actor runtime and are not equivalent to real-device multiplayer testing. The owner reported successful phone-and-desktop gameplay testing; that is distinct from automated test evidence.
+Source refreshed from the builder-linked repository on 2026-10-30. All 44 tests pass across 5 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
+
+The standalone build warns that `VITE_BASE44_APP_ID` is unset; this verifies compilation, not a configured deployment. Automated tests use a simulated Actor runtime and are not equivalent to real-device multiplayer testing. The owner previously reported successful phone-and-desktop gameplay testing; that is separate from these automated checks. No new live multiplayer play-through or clean-security-audit claim is made for this refresh.
 
 ## License
 
