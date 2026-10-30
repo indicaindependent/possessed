@@ -30,7 +30,7 @@ Enjoyed the game? Visit the [Spooky Showdown contest page](https://app.base44.co
 
 ## How to play
 
-1. Create a haunt and share its room code with a friend.
+1. Press **Quick Match** to be paired with another player who is searching, or create a haunt and share its room code with a friend.
 2. Join from another browser or device. Both players select Ready.
 3. As the Ghost, move between objects and survive for up to 60 seconds.
 4. As the Hunter, investigate objects and follow periodic room clues.
@@ -42,6 +42,7 @@ Four rooms contain twelve hiding places. The Ghost has an eight-second cooldown 
 
 - React frontend with Vite and Tailwind CSS.
 - Base44 Actor `HauntRoom` owns shared multiplayer state.
+- Base44 Actor `Matchmaker` pairs players who press Quick Match and reports how many are online and searching.
 - Shared server-side rules govern scoring, moves, searches, clues and reconnect grace.
 - Player-specific messages separate private Ghost information from Hunter-visible state.
 - SVG prop artwork, browser audio and bundled app icons.
@@ -70,7 +71,7 @@ Never put a credential into a `VITE_` variable: frontend build variables are pub
 
 ## Verification and limitations
 
-Source refreshed from the builder-linked repository on 2026-10-30. All 44 tests pass across 5 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
+Source refreshed from the builder-linked repository on 2026-10-30 (revision `868a738b`, adding Quick Match and live player counts). All 54 tests pass across 6 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
 
 The standalone build warns that `VITE_BASE44_APP_ID` is unset; this verifies compilation, not a configured deployment. Automated tests use a simulated Actor runtime and are not equivalent to real-device multiplayer testing. The owner previously reported successful phone-and-desktop gameplay testing; that is separate from these automated checks. No new live multiplayer play-through or clean-security-audit claim is made for this refresh.
 
