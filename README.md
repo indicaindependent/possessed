@@ -18,6 +18,15 @@ A real-time, two-player game of supernatural hide-and-seek. One player hides ins
 
 </div>
 
+<p align="center">
+<img src="docs/showcase/screens/possessed-screen-1-home.png" width="49%" alt="POSSESSED home screen: Quick Match, Create a Haunt and Join a Friend beside a four-room haunted house with warm room glows and a speaker toggle.">
+<img src="docs/showcase/screens/possessed-screen-2-hunter.png" width="49%" alt="Hunter view: round timer, next-clue bar and three of three search charges above the attic, library, parlor and kitchen.">
+<img src="docs/showcase/screens/possessed-screen-3-ghost.png" width="49%" alt="Ghost view: the player is hiding inside the grandfather clock, marked YOU'RE HERE, with a move ready.">
+<img src="docs/showcase/screens/possessed-screen-4-results.png" width="49%" alt="Results screen: the Ghost was caught in the trunk; buttons for Rematch, Share, Find new opponent and Home.">
+</p>
+
+<p align="center"><sub>Staged sample match, rendered from source revision <code>e52739d7</code> with the project's own test fixtures (players Mabel and Pete). Not live play.</sub></p>
+
 <a href="https://possessed.base44.app"><img src="docs/showcase/possessed-roles.svg" alt="Ghost: hide inside objects and outlast the hunt. Hunter: investigate the house and find your friend. Swap roles, then compare survival times." width="100%"></a>
 
 | Be the Ghost | Be the Hunter |
@@ -47,6 +56,7 @@ Four rooms contain twelve hiding places. The Ghost has an eight-second cooldown 
 - **Rules engine.** `base44/shared/possessedEngine.ts` holds the match and round rules; balance values live in `possessedConfig.ts`.
 - **Tests.** 54 tests across 6 files run under Vitest: rules, Actor simulation, acknowledgements, room links and the matchmaker.
 - **Procedural soundtrack.** `src/lib/possessed/music.js` synthesizes a slow, slightly-off music-box waltz in D minor live in the browser, 16 bars at 80 bpm, from oscillators with an echo. It uses no audio files and no external URLs, so it is original and carries no licensing risk.
+- **Sound and ambience.** Every sound, including the creaks and haunt ambience on the home and waiting screens, is synthesized in the browser by `src/lib/possessed/audio.js` and `creak.js`, with no audio files and no external URLs. The music tries to start on load; browsers that block autoplay (Safari on iPhone) start it on the first tap, and a speaker toggle on the home screen mutes it.
 
 ## Design and polish
 
@@ -86,7 +96,7 @@ Never put a credential into a `VITE_` variable: frontend build variables are pub
 
 ## Verification and limitations
 
-Source refreshed from the builder-synced repository on 2026-10-31 (revision `1c44b75a`, adding background music, audio fixes and a mobile typography and design-token pass on top of Quick Match). All 54 tests pass across 6 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
+Source refreshed from the builder-synced repository on 2026-11-01 (revision `e52739d7`, adding autoplay audio with a sound toggle and home and waiting-room ambience on top of the soundtrack, the mobile design-token pass and Quick Match). All 54 tests pass across 6 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
 
 The standalone build warns that `VITE_BASE44_APP_ID` is unset; this verifies compilation, not a configured deployment. Automated tests use a simulated Actor runtime and are not equivalent to real-device multiplayer testing. The owner previously reported successful phone-and-desktop gameplay testing; that is separate from these automated checks. No new live multiplayer play-through or clean-security-audit claim is made for this refresh.
 
