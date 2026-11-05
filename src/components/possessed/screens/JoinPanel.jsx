@@ -25,11 +25,11 @@ export default function JoinPanel({ name, onName, joining, setJoining, initialCo
               <p className="mb-1.5 text-[13px] font-extrabold uppercase tracking-[0.06em] text-parchment/85">Play with a friend</p>
               <div className="grid grid-cols-2 gap-2.5">
                 <button type="button" onClick={onCreate} disabled={busy}
-                  className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-pumpkin/90 bg-pumpkin/5 px-2 font-display text-base font-bold tracking-[0.01em] text-pumpkin transition hover:bg-pumpkin/15 active:translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-parchment disabled:opacity-60 sm:text-lg">
+                  className="intro-cta flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-pumpkin/90 bg-pumpkin/5 px-2 font-display text-base font-bold tracking-[0.01em] text-pumpkin transition hover:bg-pumpkin/15 active:translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-parchment disabled:opacity-60 sm:text-lg">
                   {busy && <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />} Create a Haunt
                 </button>
                 <button type="button" onClick={() => setJoining(true)} disabled={busy}
-                  className="h-12 rounded-xl border-2 border-spectral/90 bg-spectral/5 px-2 font-display text-base font-bold tracking-[0.01em] text-spectral transition hover:bg-spectral/15 active:translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-parchment sm:text-lg">
+                  className="intro-cta h-12 rounded-xl border-2 border-spectral/90 bg-spectral/5 px-2 font-display text-base font-bold tracking-[0.01em] text-spectral transition hover:bg-spectral/15 active:translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-parchment sm:text-lg">
                   Join a Friend
                 </button>
               </div>
@@ -46,6 +46,9 @@ export default function JoinPanel({ name, onName, joining, setJoining, initialCo
               className="mt-1 h-14 w-full rounded-xl border-2 border-parchment/25 bg-plum/75 text-center font-mono text-2xl font-bold uppercase tabular-nums tracking-[0.38em] text-parchment shadow-inner placeholder:text-parchment/50 focus:border-spectral focus:outline-none focus-visible:ring-2 focus-visible:ring-spectral/50"
             />
           </label>
+          {code.length === 6 && !valid && (
+            <p role="alert" className="text-sm font-bold text-pumpkin">That code doesn&apos;t look right. Codes never use 0, O, 1, I, L, 2, Z, 5, S, 8 or B.</p>
+          )}
           <div className="grid grid-cols-[auto_1fr] gap-2.5">
             <button type="button" onClick={() => setJoining(false)} className="h-14 rounded-xl px-4 font-bold text-parchment/80 hover:text-parchment focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-parchment">Back</button>
             <button type="submit" disabled={!valid || busy}
