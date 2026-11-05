@@ -8,30 +8,38 @@ import PauseOverlay from '@/components/possessed/room/PauseOverlay';
 import PhasePanel from '@/components/possessed/room/PhasePanel';
 import AnnouncePill from '@/components/possessed/room/AnnouncePill';
 import CaughtFlourish from '@/components/possessed/room/CaughtFlourish';
+import GoBeat from '@/components/possessed/room/GoBeat';
+import PracticeChip from '@/components/possessed/room/PracticeChip';
+import ArrivedOffer from '@/components/possessed/room/ArrivedOffer';
 
 // Pure room layout (no socket): playing = HUD + full house; otherwise panel first, house as context.
-export default function RoomView({ view, status, pending, act, fb, prefs, onLeave, onNewHaunt, quick = false, onFindNew }) {
+export default function RoomView({ view, status, latency = null, pending, act, fb, prefs, onLeave, onNewHaunt, quick = false, onFindNew, onFace = null }) {
   const playing = view.phase === 'countdown' || view.phase === 'active';
-  const propStates = usePropStates(view, fb.marks, pending);
+  const propStates = usePropStates(view, fb.marks, pending, fb.memory);
   const onPick = usePick(view, act, fb.say);
   const live = view.phase === 'active' && !view.clock.paused && status === 'online';
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-y-auto pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
+    <div className={`flex h-[100dvh] flex-col ${playing ? 'overflow-hidden overscroll-none' : 'overflow-y-auto'} pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]`}>
       <p className="sr-only" aria-live="polite" aria-atomic="true">{fb.announce.text}</p>
-      <TopBar code={view.code} status={status} prefs={prefs} onLeave={onLeave} />
-      {playing && <GameHUD view={view} pulse={fb.pulse} />}
+      <TopBar code={view.code} status={status} latency={latency} prefs={prefs} onLeave={onLeave} confirmLeave={playing} />
+      {view.practice && <PracticeChip level={view.practiceLevel || 'haunted'} />}
+      {onFace && (view.phase === 'intermission' || view.phase === 'final' || view.phase === 'lobby') && (
+        <div className="mx-1.5 mt-1.5 sm:mx-auto sm:w-full sm:max-w-md"><ArrivedOffer onFace={onFace} /></div>
+      )}
+      {playing && <GameHUD view={view} pulse={fb.pulse} act={act} />}
       {playing ? (
-        <div className="relative flex min-h-[300px] flex-1 px-1.5 pb-[max(env(safe-area-inset-bottom),0.375rem)] pt-1.5 sm:px-4 short:min-h-[230px]">
+        <div className={`relative flex min-h-[300px] flex-1 ${fb.shake ? 'house-shake' : ''} px-1.5 pb-[max(env(safe-area-inset-bottom),0.375rem)] pt-1.5 sm:px-4 short:min-h-[230px]`}>
           <HauntedHouse className="h-full" interactive={live} propStates={propStates} clue={fb.clue} celebrate={fb.celebrate} onPick={onPick} />
           <AnnouncePill announce={fb.announce} />
           <CaughtFlourish stamp={fb.flourish} />
+          <GoBeat stamp={fb.go} />
           {view.phase === 'countdown' && !view.clock.paused && <CountdownOverlay view={view} />}
           {(view.clock.paused || status === 'reconnecting') && <PauseOverlay view={view} selfOffline={status === 'reconnecting'} />}
         </div>
       ) : (
         <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2.5 px-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 sm:px-4 lg:min-h-0 lg:flex-row lg:items-center lg:gap-8 short:min-h-0 short:flex-row">
-          <PhasePanel view={view} act={act} pending={pending} onLeave={onLeave} onNewHaunt={onNewHaunt} announce={fb.announce} quick={quick} onFindNew={onFindNew} />
+          <PhasePanel view={view} reducedMotion={prefs.reducedMotion} act={act} pending={pending} onLeave={onLeave} onNewHaunt={onNewHaunt} announce={fb.announce} quick={quick} onFindNew={onFindNew} />
           <div className="relative h-[300px] shrink-0 sm:h-[400px] lg:h-[min(640px,calc(100dvh-5rem))] lg:min-h-0 lg:flex-1 short:h-auto short:min-h-0 short:flex-1">
             <HauntedHouse decorative ambient className="h-full" propStates={propStates} celebrate={fb.celebrate} />
             <CaughtFlourish stamp={fb.flourish} />

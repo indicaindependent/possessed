@@ -2,7 +2,7 @@ import { startMusic } from '@/lib/possessed/music';
 import creak from '@/lib/possessed/creak';
 
 // Tiny Web Audio synth. Autoplay is attempted on load; browsers that block it (Safari on iPhone)
-// leave the context suspended, so the home screen's speaker button finishes the job on first tap.
+// leave the context suspended, so the opening's gate tap finishes the job.
 let ctx = null;
 let master = null;
 let muted = typeof localStorage !== 'undefined' && localStorage.getItem('possessed:muted') === '1';
@@ -31,9 +31,17 @@ function ensureContext() {
   master.gain.value = muted ? 0 : 0.6;
   master.connect(ctx.destination);
   ctx.onstatechange = () => setRunning(ctx.state === 'running');
+  startAmbient();
+  return ctx;
+}
+
+// Wind + soundtrack start exactly once per page; later calls (gate tap, autoplay, prefs) are no-ops.
+let ambientStarted = false;
+export function startAmbient() {
+  if (ambientStarted || !ctx) return;
+  ambientStarted = true;
   startWind();
   startMusic(ctx, master);
-  return ctx;
 }
 
 // Starts sound without a gesture: allowed on most desktops and Android, blocked (left
@@ -82,7 +90,7 @@ function startWind() {
 
 export function setAudioMuted(m) {
   muted = m;
-  if (master) master.gain.value = m ? 0 : 0.6;
+  if (master) master.gain.value = m ? 0 : 0.6 * duck;
 }
 
 // Decorative only: never unlocks audio or bypasses the player's sound preference.
@@ -105,7 +113,14 @@ function tone(freq, { at = 0, dur = 0.3, type = 'sine', gain = 0.2, to = null, a
   o.stop(t0 + dur + 0.05);
 }
 
-function noise({ at = 0, dur = 0.3, from = 1200, to = 300, gain = 0.1 }) {
+// Intro ducking: scales the whole mix (music, wind, sfx) without touching the mute preference.
+let duck = 1;
+export function setDuck(level) {
+  duck = level;
+  if (master && !muted) master.gain.setTargetAtTime(0.6 * level, ctx.currentTime, 0.15);
+}
+
+function noise({ at = 0, dur = 0.3, from = 1200, to = 300, gain = 0.1, attack = 0.04 }) {
   const t0 = ctx.currentTime + at;
   const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -119,7 +134,7 @@ function noise({ at = 0, dur = 0.3, from = 1200, to = 300, gain = 0.1 }) {
   f.frequency.exponentialRampToValueAtTime(to, t0 + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.04);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   src.connect(f).connect(g).connect(master);
   src.start(t0);
@@ -139,6 +154,16 @@ export const sfx = {
   searched: play(() => noise({ dur: 0.2, from: 900, to: 500, gain: 0.06 })),
   go: play(() => { tone(784, { dur: 0.25, gain: 0.14 }); tone(1175, { at: 0.1, dur: 0.4, gain: 0.12 }); }),
   heartbeat: play(() => [[0, 0.4], [0.24, 0.32]].forEach(([at, gain]) => { tone(62, { at, dur: 0.18, gain, to: 45 }); tone(130, { at, dur: 0.14, gain: gain * 0.6, to: 90, type: 'triangle' }); })),
+  creak: play(() => tone(150, { dur: 0.7, to: 95, gain: 0.12, type: 'sawtooth' })),
+  breath: play(() => noise({ dur: 1.1, from: 700, to: 300, gain: 0.09 })),
+  giggle: play(() => [0, 0.12, 0.24, 0.36].forEach((at, i) => tone(1100 - i * 60, { at, dur: 0.09, gain: 0.07, to: 1250 - i * 60 }))),
+  lowTone: play(() => tone(110, { dur: 0.9, gain: 0.08, to: 82, attack: 0.12 })),
   softTick: play(() => tone(1320, { dur: 0.06, gain: 0.035 })),
   tick: play(() => tone(660, { dur: 0.09, gain: 0.07, type: 'square' })),
+  // Intro cinematic beds and hits.
+  wind: play(() => noise({ dur: 2.5, from: 400, to: 900, gain: 0.05, attack: 0.8 })),
+  thunder: play(() => { noise({ dur: 1.6, from: 120, to: 60, gain: 0.25 }); tone(48, { dur: 1.2, to: 30, gain: 0.2 }); }),
+  drone: play(() => tone(55, { type: 'sawtooth', dur: 6, gain: 0.05, attack: 1.5 })),
+  sweep: play(() => noise({ dur: 0.6, from: 300, to: 1800, gain: 0.05 })),
+  thump: play(() => tone(70, { dur: 0.35, to: 40, gain: 0.3 })),
 };

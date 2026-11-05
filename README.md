@@ -14,18 +14,18 @@ Indica Independent Media's entry in **Base44 Spooky Showdown**.
 
 A real-time, two-player game of supernatural hide-and-seek. One player hides inside the house's objects as the Ghost. The other follows clues and spends search charges as the Hunter. Then the roles reverse.
 
-**Quick Match:** one tap and you are paired automatically with another waiting player. Prefer to play with someone you know? Create a haunt and send them its private invite link.
+**Quick Match:** one tap and you are paired automatically with another waiting player. Prefer to play with someone you know? Create a haunt and send them its private invite link. No one around? **Play the House**: practise against the haunted house itself at three difficulty levels, Restless, Haunted and Possessed, with no waiting.
 
 </div>
 
 <p align="center">
-<img src="docs/showcase/screens/possessed-screen-1-home.png" width="49%" alt="POSSESSED home screen: Quick Match, Create a Haunt and Join a Friend beside a four-room haunted house with warm room glows and a speaker toggle.">
-<img src="docs/showcase/screens/possessed-screen-2-hunter.png" width="49%" alt="Hunter view: round timer, next-clue bar and three of three search charges above the attic, library, parlor and kitchen.">
-<img src="docs/showcase/screens/possessed-screen-3-ghost.png" width="49%" alt="Ghost view: the player is hiding inside the grandfather clock, marked YOU'RE HERE, with a move ready.">
-<img src="docs/showcase/screens/possessed-screen-4-results.png" width="49%" alt="Results screen: the Ghost was caught in the trunk; buttons for Rematch, Share, Find new opponent and Home.">
+<img src="docs/showcase/screens/possessed-screen-1-home.png" width="49%" alt="POSSESSED home screen: Quick Match, the house difficulty picker, Play the House now, Create a Haunt and Join a Friend, a Same house, two screens explainer, and the four-room haunted house.">
+<img src="docs/showcase/screens/possessed-screen-2-hunter.png" width="49%" alt="Hunter view: round timer, next-clue bar, two of three search charges with one regenerating, and the last clue, above the attic, library, parlor and kitchen.">
+<img src="docs/showcase/screens/possessed-screen-3-ghost.png" width="49%" alt="Ghost view: the player is hiding inside the grandfather clock, marked YOU'RE HERE, with a move ready, the clue the Hunter was given, and the taunt bar: Creak, Knock, Breath and Giggle.">
+<img src="docs/showcase/screens/possessed-screen-4-results.png" width="49%" alt="Results screen: Pete wins, with survival bars comparing both players, the Ghost caught in the trunk, and buttons for Rematch, Share, New haunt and Home.">
 </p>
 
-<p align="center"><sub>Staged sample match, rendered from source revision <code>e52739d7</code> with the project's own test fixtures (players Mabel and Pete). Not live play.</sub></p>
+<p align="center"><sub>Staged sample match, rendered from source revision <code>fa991d56</code> with the project's own test fixtures (players Mabel and Pete). Not live play.</sub></p>
 
 <a href="https://possessed.base44.app"><img src="docs/showcase/possessed-roles.svg" alt="Ghost: hide inside objects and outlast the hunt. Hunter: investigate the house and find your friend. Swap roles, then compare survival times." width="100%"></a>
 
@@ -41,22 +41,25 @@ Enjoyed the game? Visit the [Spooky Showdown contest page](https://app.base44.co
 
 ## How to play
 
-1. Press **Quick Match** to be paired automatically with another waiting player, or create a haunt and send a friend its private invite link or room code.
+1. Press **Quick Match** to be paired automatically with another waiting player, or create a haunt and send a friend its private invite link or room code. To play alone, pick a house difficulty and press **Play the House now**.
 2. Join from another browser or device. Both players select Ready.
-3. As the Ghost, move between objects and survive for up to 60 seconds.
+3. As the Ghost, move between objects and survive for up to 60 seconds. Taunt the Hunter with a creak, knock, breath or giggle to unsettle them.
 4. As the Hunter, investigate objects and follow periodic room clues.
 5. Swap roles for round two. Longer Ghost survival wins; equal survival times draw.
 
-Four rooms contain twelve hiding places. The Ghost has an eight-second cooldown between moves. The Hunter starts with three charges and regenerates one spent charge every five active seconds. Room clues arrive at 12, 24, 36 and 48 seconds. These are the configuration values in this source snapshot, not claims of perfect balance.
+Four rooms contain twelve hiding places. The Ghost has an eight-second cooldown between moves, shortening to six seconds after 30 active seconds, and a Ghost that stays put for 20 seconds starts to stir its object every 10 seconds, which the Hunter can see. Taunts have a ten-second cooldown. The Hunter starts with three charges and regenerates one spent charge every seven active seconds. Room clues arrive at 12, 24, 36 and 48 seconds. After each round the Ghost's path through the house is replayed on the results screen. These are the configuration values in this source snapshot, not claims of perfect balance.
 
 ## What is inside
 
 - **Authoritative server.** The `HauntRoom` Actor (`base44/actors/HauntRoom/entry.ts`) owns the shared game state, so clients cannot decide outcomes for themselves.
 - **Matchmaker.** The `Matchmaker` Actor (`base44/actors/Matchmaker/entry.ts`) runs the Quick Match pairing queue and reports live counts of players online and searching.
 - **Rules engine.** `base44/shared/possessedEngine.ts` holds the match and round rules; balance values live in `possessedConfig.ts`.
-- **Tests.** 54 tests across 6 files run under Vitest: rules, Actor simulation, acknowledgements, room links and the matchmaker.
+- **The House.** `base44/shared/possessedBot.ts` is a server-side practice opponent. Its Hunter aims only from what a human Hunter's screen shows, the last clue and its charges. `possessedDifficulty.ts` sets how quickly and accurately it plays at Restless, Haunted and Possessed.
+- **Opening cinematic.** A twelve-second intro (`src/components/possessed/intro/`, timeline in `src/lib/possessed/introTimeline.js`) plays once per device on the home screen, can be skipped with a tap, and shortens to a three-second fade when the device asks for reduced motion.
+- **Haunt record.** Matches played, best survival, fastest catch, taunts fired and houses beaten are kept on your own device in browser storage (`src/lib/possessed/hauntRecord.js`), not on a server.
+- **Tests.** 118 tests across 14 files run under Vitest: rules, Actor simulation, acknowledgements, room links, the matchmaker, the practice opponent, house difficulty, the intro timeline, the haunt record, the Ghost's revealed path and single-start audio.
 - **Procedural soundtrack.** `src/lib/possessed/music.js` synthesizes a slow, slightly-off music-box waltz in D minor live in the browser, 16 bars at 80 bpm, from oscillators with an echo. It uses no audio files and no external URLs, so it is original and carries no licensing risk.
-- **Sound and ambience.** Every sound, including the creaks and haunt ambience on the home and waiting screens, is synthesized in the browser by `src/lib/possessed/audio.js` and `creak.js`, with no audio files and no external URLs. The music tries to start on load; browsers that block autoplay (Safari on iPhone) start it on the first tap, and a speaker toggle on the home screen mutes it.
+- **Sound and ambience.** Every sound, including the creaks and haunt ambience on the home and waiting screens, is synthesized in the browser by `src/lib/possessed/audio.js` and `creak.js`, with no audio files and no external URLs. The music tries to start on load; browsers that block autoplay (Safari on iPhone) start it on the first tap, and a Sound on / Sound off link on the home screen mutes it.
 
 ## Design and polish
 
@@ -79,9 +82,12 @@ The latest builder commits refined the mobile layout and typography and added a 
 | `base44/actors/Matchmaker/entry.ts` | Quick Match pairing queue and live counts |
 | `base44/shared/possessedEngine.ts` | Match and round rules |
 | `base44/shared/possessedConfig.ts` | Balance values and object definitions |
+| `base44/shared/possessedBot.ts` | The House, the server-side practice opponent |
+| `base44/shared/possessedDifficulty.ts` | Restless, Haunted and Possessed difficulty settings |
+| `src/components/possessed/intro/` | The opening cinematic |
 | `src/components/possessed/` | Game views, rooms, props and artwork |
 | `src/lib/possessed/` | Client connection, session, audio, music and interaction logic |
-| `tests/` | Rule, Actor simulation, acknowledgement and reconnect tests |
+| `tests/` | Rule, Actor simulation, acknowledgement, reconnect, practice, difficulty, intro, record and audio tests |
 | `public/icons/` | Bundled PNG icons |
 
 ## Development
@@ -90,13 +96,13 @@ This is a source snapshot, not a connection to the original game's production en
 
 The frontend relies on Base44 services, including Actors. A static web host alone is not a replacement for the authoritative backend. Consult the [Base44 local development documentation](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview) when setting up your own environment.
 
-Install the locked dependencies with `npm ci`, build with `npm run build`, and lint with `npm run lint`. Run the tests with `npx vitest@3 run` (Vitest is not a project dependency; `vitest.config.js` maps the Actor runtime to a test mock).
+Install the locked dependencies with `npm ci`, build with `npm run build`, and lint with `npm run lint`. Run the tests with `npx vitest@3 run` (Vitest is not a project dependency; `vitest.config.js` maps the Actor runtime to a test mock). Use Node 22: on Node 20 one audio test fails because Node 20 has no global `navigator`, which the audio code reads.
 
 Never put a credential into a `VITE_` variable: frontend build variables are public. Keep local credentials and linked-app files out of version control.
 
 ## Verification and limitations
 
-Source refreshed from the builder-synced repository on 2026-11-01 (revision `e52739d7`, adding autoplay audio with a sound toggle and home and waiting-room ambience on top of the soundtrack, the mobile design-token pass and Quick Match). All 54 tests pass across 6 files, and `npm run build` succeeds after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
+Source refreshed from the builder-synced repository on 2026-11-05 (revision `fa991d56`, the finished game: the House practice opponent with three difficulty levels, Ghost taunts, the opening cinematic, the Ghost's path replay, the haunt record and rebalanced timings, on top of the soundtrack, ambience, design tokens and Quick Match). All 118 tests pass across 14 files on Node 22, and `npm run build` and `npm run lint` succeed after a clean `npm ci`. The lockfile resolves Zod 4.6.7. See [source provenance](docs/SOURCE.md) for the imported revision and what this public snapshot includes.
 
 The standalone build warns that `VITE_BASE44_APP_ID` is unset; this verifies compilation, not a configured deployment. Automated tests use a simulated Actor runtime and are not equivalent to real-device multiplayer testing. The owner previously reported successful phone-and-desktop gameplay testing; that is separate from these automated checks. No new live multiplayer play-through or clean-security-audit claim is made for this refresh.
 

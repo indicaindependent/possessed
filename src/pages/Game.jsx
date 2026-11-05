@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import NightSky from '@/components/possessed/house/NightSky';
 import HomeScreen from '@/components/possessed/screens/HomeScreen';
+import IntroOverlay from '@/components/possessed/intro/IntroOverlay';
+import { introMode, markIntroSeen } from '@/lib/possessed/introGate';
 import RoomScreen from '@/components/possessed/room/RoomScreen';
 import usePrefs from '@/lib/possessed/usePrefs';
 import { attemptAutoplay, unlockAudio } from '@/lib/possessed/audio';
 import { generateCode } from '@/lib/possessed/roomCode';
 import { loadSession, saveSession, forgetConn } from '@/lib/possessed/session';
 import { ERROR_TEXT } from '@/lib/possessed/format';
+import { openMatchmaker, cancelMatch } from '@/lib/possessed/matchmaker';
+import { toast } from '@/components/ui/use-toast';
 
 export default function Game() {
   const prefs = usePrefs();
@@ -25,7 +29,15 @@ export default function Game() {
     return () => events.forEach((e) => window.removeEventListener(e, unlock));
   }, []);
 
+  const [arrived, setArrived] = useState(null);
   const begin = useCallback((s) => { saveSession(s); setError(null); setAutoSearch(false); setSession(s); }, []);
+
+  // The matchmaker lives for the whole game so a search keeps running during practice.
+  useEffect(() => openMatchmaker((code) => {
+    const cur = current.current;
+    if (cur?.practice) { setArrived(code); toast({ title: 'A player arrived!', description: 'Finish up or face them now.' }); return; }
+    begin({ code, intent: 'quick', quick: true, name: sessionStorage.getItem('possessed:name')?.trim() || '' });
+  }), [begin]);
 
   const exit = useCallback((message = null) => {
     if (current.current) forgetConn(current.current.code);
@@ -37,7 +49,7 @@ export default function Game() {
 
   const onFatal = useCallback((code) => {
     const cur = current.current;
-    if (code === 'code_taken' && cur?.intent === 'create' && (cur.attempt ?? 0) < 5) {
+    if (code === 'code_taken' && (cur?.intent === 'create' || cur?.intent === 'practice') && (cur.attempt ?? 0) < 5) {
       forgetConn(cur.code);
       begin({ ...cur, code: generateCode(), attempt: (cur.attempt ?? 0) + 1 });
       return;
@@ -51,23 +63,44 @@ export default function Game() {
   }, [begin]);
 
   const initialCode = new URLSearchParams(window.location.search).get('room') || '';
+  const [intro, setIntro] = useState(() => introMode({
+    storage: window.localStorage, search: window.location.search, pathname: window.location.pathname,
+    reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  }));
+  const [replay, setReplay] = useState(false);
+  const [glow, setGlow] = useState(false);
+  const replayIntro = useCallback(() => {
+    setReplay(true);
+    setIntro(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'fade' : 'full');
+  }, []);
+  const endIntro = useCallback(() => {
+    markIntroSeen(window.localStorage);
+    setIntro('none');
+    setReplay(false);
+    setGlow(true);
+    setTimeout(() => setGlow(false), 1200);
+  }, []);
 
   return (
-    <div className={session ? 'calm' : undefined}>
+    <div className={[session ? 'calm' : '', glow ? 'intro-glow' : ''].join(' ').trim() || undefined}>
+      {!session && intro !== 'none' && <IntroOverlay key={replay ? 'replay' : 'first'} mode={intro} replay={replay} onDone={endIntro} />}
       <NightSky />
       {session ? (
         <RoomScreen session={session} prefs={prefs} onFatal={onFatal} onSeated={onSeated} onExit={() => exit()}
           onNewHaunt={() => { const name = session.name; exit(); begin({ code: generateCode(), intent: 'create', name, attempt: 0 }); }}
-          onFindNew={() => { exit(); setAutoSearch(true); }} />
+          onFindNew={() => { exit(); setAutoSearch(true); }}
+          arrived={arrived}
+          onFaceArrived={() => { const code = arrived; const name = session.name; setArrived(null); exit(); begin({ code, intent: 'quick', quick: true, name }); }} />
       ) : (
         <HomeScreen
           prefs={prefs}
+          onReplayIntro={replayIntro}
           initialCode={initialCode}
           error={error}
           autoSearch={autoSearch}
-          onQuickMatch={(code, name) => begin({ code, intent: 'quick', quick: true, name })}
-          onCreate={(name) => begin({ code: generateCode(), intent: 'create', name, attempt: 0 })}
-          onJoin={(code, name) => begin({ code, intent: 'join', name })}
+          onPractice={(name, level = 'haunted') => begin({ code: generateCode(), intent: 'practice', practice: true, level, name, attempt: 0 })}
+          onCreate={(name) => { cancelMatch(); begin({ code: generateCode(), intent: 'create', name, attempt: 0 }); }}
+          onJoin={(code, name) => { cancelMatch(); begin({ code, intent: 'join', name }); }}
         />
       )}
     </div>

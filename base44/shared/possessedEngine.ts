@@ -1,14 +1,16 @@
 // Pure, authoritative POSSESSED state machine. No I/O: the HauntRoom actor feeds it
 // wall-clock `now` and delivers the returned events. Every function returns a list of
 // { to: 'all' | 0 | 1, msg } envelopes addressed to SEATS (never to raw connections).
-import { BALANCE as B, OBJECT_IDS, ROOM_OF, LIMITS } from './possessedConfig.ts';
+import { BALANCE as B, OBJECT_IDS, ROOMS, ROOM_OF, LIMITS, TAUNTS } from './possessedConfig.ts';
+import { housePolicy, normalizeDifficulty } from './possessedDifficulty.ts';
 
 let rand = Math.random;
 export function setRandom(fn) { rand = fn; }
+export const random = () => rand();
 
 const OBJ = new Set(OBJECT_IDS);
 const IN_PLAY = new Set(['countdown', 'active', 'intermission']);
-const DEDUP = new Set(['investigate', 'possess', 'ready', 'rematch', 'back_to_lobby']);
+const DEDUP = new Set(['investigate', 'possess', 'ready', 'rematch', 'back_to_lobby', 'taunt']);
 
 const ev = (to, kind, extra = {}) => ({ to, msg: { type: 'ev', kind, ...extra } });
 
@@ -27,12 +29,36 @@ export const hunterSeat = (s) => (s.ghostSeat == null ? null : 1 - s.ghostSeat);
 export const activeNow = (s, now) =>
   s.activeElapsed + (s.runningSince != null ? Math.max(0, now - s.runningSince) : 0);
 
+// Difficulty affects The House's charges only; human Hunter rules stay unchanged.
+export const chargeRegenMs = (s) => s.practice && hunterSeat(s) === 1 ? housePolicy(s.practiceLevel).chargeRegenMs : B.chargeRegenMs;
 export function settleCharges(s, a) {
-  while (s.regenStart != null && s.charges < B.maxCharges && a - s.regenStart >= B.chargeRegenMs) {
+  const interval = chargeRegenMs(s);
+  while (s.regenStart != null && s.charges < B.maxCharges && a - s.regenStart >= interval) {
     s.charges += 1;
-    s.regenStart += B.chargeRegenMs;
+    s.regenStart += interval;
   }
   if (s.charges >= B.maxCharges) { s.charges = B.maxCharges; s.regenStart = null; }
+}
+
+export const moveCooldownAt = (a) => (a >= B.lateAfterMs ? B.lateMoveCooldownMs : B.moveCooldownMs);
+
+const shuffled = (list) => {
+  const l = [...list];
+  for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)) % (i + 1); [l[i], l[j]] = [l[j], l[i]]; }
+  return l;
+};
+
+// Narrowing ladder, computed from the live ghostObject: clues 1-2 the room; clue 3 the room plus
+// two props there that are NOT the Ghost's; clue 4 three candidate props (Ghost's included, never one).
+export function makeClue(s, index) {
+  const room = ROOM_OF[s.ghostObject];
+  const base = { index, room, atMs: B.clueTimesMs[index], props: [] };
+  if (index === 2) base.props = shuffled(ROOMS[room].filter((id) => id !== s.ghostObject)).slice(0, 2);
+  if (index >= 3) {
+    const decoys = shuffled(OBJECT_IDS.filter((id) => ROOM_OF[id] !== room)).slice(0, 2);
+    Object.assign(base, { room: null, props: shuffled([s.ghostObject, ...decoys]) });
+  }
+  return base;
 }
 
 export function cleanName(raw, seat) {
@@ -104,6 +130,7 @@ export function reconnect(s, i, now) {
 function vacate(s, i) {
   const name = s.seats[i]?.name ?? 'Your friend';
   s.seats[i] = null;
+  s.history = [];
   const out = [];
   if (IN_PLAY.has(s.phase)) {
     Object.assign(s, { phase: 'abandoned', paused: false, runningSince: null, ghostObject: null, countdownEndsAt: null, winner: null, abandonedBy: name, notice: 'abandoned' });
@@ -124,11 +151,12 @@ function setupRound(s, round, now) {
   Object.assign(s, {
     round, ghostSeat: round === 1 ? s.firstGhost : 1 - s.firstGhost,
     ghostObject: OBJECT_IDS[Math.floor(rand() * OBJECT_IDS.length) % OBJECT_IDS.length],
-    charges: B.startCharges, regenStart: null, moveReadyAt: B.startMoveReadyMs,
-    activeElapsed: 0, runningSince: null, nextClue: 0, lastClue: null, paused: false,
+    charges: B.startCharges, regenStart: null, moveReadyAt: B.startMoveReadyMs, tauntReadyAt: 0, tauntsFired: 0,
+    activeElapsed: 0, runningSince: null, nextClue: 0, lastClue: null, paused: false, nextStirAt: B.stillPressureMs, searchedIds: [],
     roundId: `m${s.matchNo}r${round}-${Math.floor(rand() * 1e9).toString(36)}`,
     phase: 'countdown', countdownEndsAt: now + B.countdownMs,
   });
+  s.possessionPath = [{ object: s.ghostObject, room: ROOM_OF[s.ghostObject], fromMs: 0, toMs: null }];
   resetFlags(s);
   return [ev('all', 'round_setup', { round })];
 }
@@ -152,13 +180,29 @@ function endRound(s, outcome, survivalMs) {
   const result = {
     round: s.round, ghostSeat: s.ghostSeat, ghostName: s.seats[s.ghostSeat]?.name ?? 'Ghost',
     outcome, survivalMs: Math.round(survivalMs), hidingObject: s.ghostObject, hidingRoom: ROOM_OF[s.ghostObject],
+    searched: [...(s.searchedIds || [])],
+    tauntsFired: s.tauntsFired || 0,
+    path: (s.possessionPath || []).map((stop, index, path) => ({ ...stop, toMs: index === path.length - 1 ? Math.round(survivalMs) : stop.toMs })),
   };
   s.results.push(result);
   Object.assign(s, { activeElapsed: survivalMs, runningSince: null, ghostObject: null, paused: false });
   resetFlags(s);
   if (s.round === 1) s.phase = 'intermission';
-  else { s.phase = 'final'; s.winner = decideWinner(s.results); }
-  return [ev('all', 'round_end', { result })];
+  else {
+    s.phase = 'final'; s.winner = decideWinner(s.results);
+    // Rematch score strip: survives rematches, cleared when a seat is vacated.
+    const ms = [0, 1].map((k) => s.results.find((r) => r.ghostSeat === k)?.survivalMs ?? 0);
+    s.history = [...(s.history || []), { match: s.matchNo, ms }].slice(-5);
+  }
+  return [ev('all', 'round_end', { result: withoutPath(result) }), ...resultEvents(s)];
+}
+
+const withoutPath = ({ path: _path, ...result }) => result;
+// Reveals travel only on these result events, including resyncs after a reconnect.
+export function resultEvents(s) {
+  if (s.phase === 'intermission') return [ev('all', 'round_result', { matchNo: s.matchNo, result: s.results[0] })];
+  if (s.phase === 'final') return [ev('all', 'final', { matchNo: s.matchNo, results: s.results })];
+  return [];
 }
 
 export function advance(s, now) {
@@ -175,9 +219,14 @@ export function advance(s, now) {
   if (s.phase === 'active') {
     const a = Math.min(activeNow(s, now), B.roundMs);
     while (s.nextClue < B.clueTimesMs.length && B.clueTimesMs[s.nextClue] <= a) {
-      s.lastClue = { index: s.nextClue, room: ROOM_OF[s.ghostObject], atMs: B.clueTimesMs[s.nextClue] };
+      s.lastClue = makeClue(s, s.nextClue);
       s.nextClue += 1;
       out.push(ev('all', 'clue', { ...s.lastClue }));
+    }
+    if (s.nextStirAt == null) s.nextStirAt = B.stillPressureMs;
+    while (s.nextStirAt <= a && s.nextStirAt < B.roundMs) {
+      out.push(ev(hunterSeat(s), 'stir', { objectId: s.ghostObject }));
+      s.nextStirAt += B.stirEveryMs;
     }
     if (activeNow(s, now) >= B.roundMs) out.push(...endRound(s, 'survived', B.roundMs));
   }
@@ -234,6 +283,7 @@ export function act(s, i, msg, now) {
         if (i !== hunterSeat(s)) return reject('not_hunter');
         settleCharges(s, a);
         if (s.charges <= 0) return reject('no_charges');
+        s.searchedIds = [...new Set([...(s.searchedIds || []), msg.objectId])];
         if (msg.objectId === s.ghostObject) return [...out, ...endRound(s, 'caught', a)];
         if (s.charges === B.maxCharges) s.regenStart = a;
         s.charges -= 1;
@@ -245,10 +295,28 @@ export function act(s, i, msg, now) {
       if (msg.objectId === s.ghostObject) return reject('same_object');
       if (a < s.moveReadyAt) return reject('cooldown');
       const from = s.ghostObject;
+      const path = s.possessionPath || (s.possessionPath = [{ object: from, room: ROOM_OF[from], fromMs: 0, toMs: null }]);
+      path[path.length - 1].toMs = Math.round(a);
+      path.push({ object: msg.objectId, room: ROOM_OF[msg.objectId], fromMs: Math.round(a), toMs: null });
       s.ghostObject = msg.objectId;
-      s.moveReadyAt = a + B.moveCooldownMs;
+      s.moveReadyAt = a + moveCooldownAt(a);
+      s.nextStirAt = a + B.stillPressureMs;
       out.push(ev(i, 'moved', { objectId: msg.objectId, from }));
       out.push(ev(hunterSeat(s), 'ripple', { objectId: from }));
+      return out;
+    }
+    case 'taunt': {
+      if (s.phase !== 'active') return reject('not_active');
+      if (s.paused) return reject('paused');
+      if (msg.roundId !== s.roundId) return reject('stale_round');
+      if (i !== s.ghostSeat) return reject('not_ghost');
+      if (!TAUNTS.includes(msg.sound)) return reject('bad_action');
+      const a = activeNow(s, now);
+      if (a < (s.tauntReadyAt ?? 0)) return reject('taunt_cooldown');
+      s.tauntReadyAt = a + B.tauntCooldownMs;
+      s.tauntsFired = (s.tauntsFired || 0) + 1;
+      out.push(ev(hunterSeat(s), 'taunt', { sound: msg.sound }));
+      out.push(ev(i, 'taunted', { sound: msg.sound }));
       return out;
     }
     default:
@@ -268,8 +336,8 @@ export function nextDeadline(s) {
   for (const st of s.seats) if (st && !st.connected && st.graceUntil) c.push(st.graceUntil);
   if (s.phase === 'countdown' && !s.paused) c.push(s.countdownEndsAt);
   if (s.phase === 'active' && s.runningSince != null) {
-    const target = B.clueTimesMs[s.nextClue] ?? B.roundMs;
-    c.push(s.runningSince + (Math.min(target, B.roundMs) - s.activeElapsed));
+    const target = Math.min(B.clueTimesMs[s.nextClue] ?? B.roundMs, s.nextStirAt ?? B.roundMs, B.roundMs);
+    c.push(s.runningSince + (target - s.activeElapsed));
   }
   return c.length ? Math.min(...c) : null;
 }
@@ -285,6 +353,8 @@ export function view(s, i, now) {
       seat: k, name: st.name, ready: st.ready, rematch: st.rematch, connected: st.connected,
       graceMs: !st.connected && st.graceUntil ? Math.max(0, st.graceUntil - now) : null,
     } : null)),
+    practice: !!s.practice, practiceLevel: s.practice ? normalizeDifficulty(s.practiceLevel) : null,
+    recordId: s.phase === 'final' ? `${s.code}:${s.roundId}` : null,
     matchNo: s.matchNo, round: s.round, roundId: inRound ? s.roundId : null, role, ghostSeat: s.ghostSeat,
     clock: {
       activeMs: a, paused: s.paused, running: s.phase === 'active' && !s.paused,
@@ -292,14 +362,14 @@ export function view(s, i, now) {
     },
     nextClueAtMs: s.phase === 'active' ? (B.clueTimesMs[s.nextClue] ?? null) : null,
     lastClue: inRound ? s.lastClue : null,
-    results: s.results, winner: s.winner, notice: s.notice, abandonedBy: s.abandonedBy,
+    results: s.results.map(withoutPath), winner: s.winner, notice: s.notice, abandonedBy: s.abandonedBy, history: s.history || [],
     balance: {
       roundMs: B.roundMs, countdownMs: B.countdownMs, moveCooldownMs: B.moveCooldownMs, maxCharges: B.maxCharges,
-      chargeRegenMs: B.chargeRegenMs, clueDurationMs: B.clueDurationMs, rippleMs: B.rippleMs, reconnectGraceMs: B.reconnectGraceMs,
-      clueTimesMs: B.clueTimesMs,
+      chargeRegenMs: chargeRegenMs(s), clueDurationMs: B.clueDurationMs, rippleMs: B.rippleMs, reconnectGraceMs: B.reconnectGraceMs,
+      clueTimesMs: B.clueTimesMs, tauntCooldownMs: B.tauntCooldownMs,
     },
   };
-  if (inRound && role === 'ghost') v.ghost = { objectId: s.ghostObject, moveReadyInMs: Math.max(0, s.moveReadyAt - a) };
+  if (inRound && role === 'ghost') v.ghost = { objectId: s.ghostObject, cooldownMs: moveCooldownAt(a), moveReadyInMs: Math.max(0, s.moveReadyAt - a), tauntReadyInMs: Math.max(0, (s.tauntReadyAt ?? 0) - a) };
   if (inRound && role === 'hunter') {
     settleCharges(s, a);
     v.hunter = { charges: s.charges, regenElapsedMs: s.regenStart != null ? a - s.regenStart : null };
